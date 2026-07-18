@@ -43,33 +43,30 @@ class DSPTrainerApp:
         self.record_button = tk.Button(control_frame, text="🎙 Record Audio", command=self.toggle_recording)
         self.record_button.pack(side=tk.LEFT, padx=10)
 
-        noise_frame = tk.Frame(control_frame)
-        noise_frame.pack(side=tk.LEFT, padx=(0, 20))
+        # 2. Filter Editor (Middle Left)
 
-        tk.Label(noise_frame, text="Noise Magnitude:").pack(side=tk.LEFT, padx=(0, 5))
+        filter_frame = tk.LabelFrame(main_frame, text="Filter Editor", padx=10, pady=10)
+        filter_frame.pack(side=tk.LEFT, padx=10, expand=True, fill="y")
+
+        noise_frame = tk.Frame(filter_frame)
+        noise_frame.pack(side=tk.TOP, padx=(0, 20))
+
+        tk.Label(noise_frame, text="Noise Magnitude:").pack(side=tk.TOP, padx=(0, 5))
         self.noise_slider = tk.Scale(
             noise_frame, 
             from_=0.0, 
             to=0.5, 
             orient=tk.HORIZONTAL, 
-            command=self.update_noise_label, # Update label on slide
             resolution=0.01,
             length=200
         )
         self.noise_slider.set(0.0)
-        self.noise_slider.pack(side=tk.LEFT, padx=(0, 10))
+        self.noise_slider.pack(side=tk.BOTTOM, padx=(0, 10))
         
-        self.noise_label = tk.Label(noise_frame, text="0.0")
-        self.noise_label.pack(side=tk.LEFT)
-
-        # 2. Filter Editor (Middle Left)
-        filter_frame = tk.LabelFrame(main_frame, text="Filter Editor", padx=10, pady=10)
-        filter_frame.pack(side=tk.LEFT, padx=10, expand=True, fill="y")
-
         tk.Label(filter_frame, text="Filter Type:").pack(pady=5)
         self.filter_type = tk.StringVar(value="Low-Pass")
         self.filter_options = ["Low-Pass", "High-Pass", "Band-Pass", "Band-Stop"]
-        tk.OptionMenu(filter_frame, self.filter_type, *self.filter_options).pack(pady=5, anchor="w")
+        tk.OptionMenu(filter_frame, self.filter_type, *self.filter_options).pack(pady=5)
         
         # Filter parameters
         tk.Label(filter_frame, text="Cutoff/Center Freq (Hz):").pack(pady=2)
@@ -83,7 +80,7 @@ class DSPTrainerApp:
         tk.Button(filter_frame, text="⚙ Update Audio", command=self.process_audio, bg='#4CAF50', fg='white').pack(pady=15, fill='x')
 
         # 3. Visualization and Playback (Middle Right)
-        right_frame = tk.LabelFrame(main_frame, padx=10, pady=10)
+        right_frame = tk.Frame(main_frame)
         right_frame.pack(side=tk.RIGHT, padx=10, expand=True, fill="both")
         viz_frame = tk.LabelFrame(right_frame, text="Visualization & Output", padx=10, pady=10)
         viz_frame.pack(side=tk.TOP, padx=10, expand=True, fill="both")
@@ -109,7 +106,7 @@ class DSPTrainerApp:
         
         # save audio tracks
         saved_frame = tk.LabelFrame(right_frame, text="Saved Tracks", padx=10, pady=10)
-        saved_frame.pack(side=tk.BOTTOM, padx=10, expand=True, fill="y")
+        saved_frame.pack(side=tk.BOTTOM, padx=10, expand=True, fill="x")
 
         tk.Button(saved_frame, text="💾 Save Filtered Track", command=self.save_track, bg='#FFC107', fg='black').pack(side=tk.TOP, pady=5, fill='x')
 
@@ -123,17 +120,10 @@ class DSPTrainerApp:
         # Initial update of the saved tracks UI
         self._update_saved_tracks_ui()
         
-        # Initialize the noise label
-        self.update_noise_label(self.noise_slider.get())
-
 
     # ========================================================
     # NOISE HANDLERS
     # ========================================================
-
-    def update_noise_label(self, value):
-        """Updates the label displaying the current noise magnitude."""
-        self.noise_label.config(text=f"{float(value):.2f}")
 
     def add_noise(self, signal, noise_magnitude):
         """Adds Gaussian noise to the original signal."""
@@ -220,7 +210,7 @@ class DSPTrainerApp:
         self._create_saved_track_button(track_id, f"Saved Track {self.track_counter}")
         self._update_saved_tracks_ui()
         
-        messagebox.showinfo("Success", f"Track saved successfully as {track_id}!")
+        #messagebox.showinfo("Success", f"Track saved successfully as {track_id}!")
 
     def _create_saved_track_button(self, track_id, text):
         """Internal function to create and place a button for a saved track."""
