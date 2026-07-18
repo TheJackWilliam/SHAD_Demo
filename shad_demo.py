@@ -73,11 +73,11 @@ class DSPTrainerApp:
         
         # Filter parameters
         tk.Label(filter_frame, text="Cutoff/Center Freq (Hz):").pack(pady=2)
-        self.cutoff_var = tk.DoubleVar(value=500)
+        self.cutoff_var = tk.DoubleVar(value=3000)
         tk.Entry(filter_frame, textvariable=self.cutoff_var, width=10).pack(pady=2)
 
         tk.Label(filter_frame, text="Bandwidth (Hz):").pack(pady=2)
-        self.bw_var = tk.DoubleVar(value=10)
+        self.bw_var = tk.DoubleVar(value=100)
         tk.Entry(filter_frame, textvariable=self.bw_var, width=10).pack(pady=2)
         
         tk.Button(filter_frame, text="⚙ Update Audio", command=self.process_audio, bg='#4CAF50', fg='white').pack(pady=15, fill='x')
@@ -295,8 +295,8 @@ class DSPTrainerApp:
                  print("Warning: Band parameters outside valid frequency range. Using default.")
                  return data.copy()
             
-            cutoff_low = (cutoff - bw) / (self.sample_rate / 2)
-            cutoff_high = (cutoff + bw) / (self.sample_rate / 2)
+            cutoff_low = (cutoff - bw/2) / (self.sample_rate / 2)
+            cutoff_high = (cutoff + bw/2) / (self.sample_rate / 2)
             Wn = [cutoff_low, cutoff_high]
         else:
             Wn = cutoff / (self.sample_rate / 2)
