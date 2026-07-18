@@ -144,7 +144,7 @@ class DSPTrainerApp:
         noise = np.random.normal(0, noise_magnitude, len(signal))
         
         # Add noise to the signal
-        noisy_signal = signal * (1 + noise)
+        noisy_signal = signal + noise
         return noisy_signal
 
     # ========================================================
@@ -173,6 +173,7 @@ class DSPTrainerApp:
             if self.frames:
                 # Concatenate all recorded frames into one numpy array
                 self.audio_data = np.concatenate(self.frames).astype(np.float32) / 32768.0
+                self.audio_data = self._normalize_audio(self.audio_data)
                 self.frames = []
                 messagebox.showinfo("Recording Complete", f"Recorded {len(self.audio_data)} samples.")
                 self.record_button.config(text="🎙 Record Audio")
