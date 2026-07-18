@@ -381,15 +381,15 @@ class DSPTrainerApp:
         time_axis = np.arange(len(self.audio_data)) / self.sample_rate
         
         # Plot Original Waveform
-        self.axes[0].plot(time_axis, self.audio_data, label='1. Original Signal', color='blue', alpha=0.5)
+        self.axes[0].plot(time_axis, self.audio_data, label='Original Signal', color='blue', alpha=0.5)
         
         # Plot Noisy Waveform
         if self.noisy_data is not None:
-            self.axes[0].plot(time_axis, self.noisy_data, label='2. Noisy Signal', color='orange', alpha=0.7)
+            self.axes[0].plot(time_axis, self.noisy_data, label='Noisy Signal', color='orange', alpha=0.7)
             
         # Plot Filtered Waveform
         if self.filtered_data is not None:
-            self.axes[0].plot(time_axis, self.filtered_data, label='3. Processed Signal', color='red', alpha=0.7)
+            self.axes[0].plot(time_axis, self.filtered_data, label='Processed Signal', color='red', alpha=0.7)
             self.axes[0].legend()
 
         self.axes[0].set_title("Time Domain Waveform (Raw -> Noisy -> Filtered)")
