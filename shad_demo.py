@@ -17,12 +17,13 @@ class DSPTrainerApp:
         master.title("Digital Signal Processing Trainer")
 
         # --- Global Audio State ---
-        self.audio_data = None
+        self.audio_data = None # Raw recorded signal
+        self.noisy_data = None # Signal after noise addition
+        self.filtered_data = None
         self.sample_rate = 44100  # Standard sample rate
         self.p = pyaudio.PyAudio()
         self.stream = None
         self.recording = False
-        self.filtered_data = None
         self.saved_tracks = {}
         self.track_counter = 0
 
@@ -37,10 +38,29 @@ class DSPTrainerApp:
         # 1. Control Panel (Top)
         control_frame = tk.Frame(main_frame, pady=10, padx=5)
         control_frame.pack(fill='x')
-
+        
         tk.Label(control_frame, text="Recording Status:").pack(side=tk.LEFT, padx=5)
         self.record_button = tk.Button(control_frame, text="🎙 Record Audio", command=self.toggle_recording)
         self.record_button.pack(side=tk.LEFT, padx=10)
+
+        noise_frame = tk.Frame(control_frame)
+        noise_frame.pack(side=tk.LEFT, padx=(0, 20))
+
+        tk.Label(noise_frame, text="Noise Magnitude:").pack(side=tk.LEFT, padx=(0, 5))
+        self.noise_slider = tk.Scale(
+            noise_frame, 
+            from_=0.0, 
+            to=0.5, 
+            orient=tk.HORIZONTAL, 
+            command=self.update_noise_label, # Update label on slide
+            resolution=0.01,
+            length=200
+        )
+        self.noise_slider.set(0.0)
+        self.noise_slider.pack(side=tk.LEFT, padx=(0, 10))
+        
+        self.noise_label = tk.Label(noise_frame, text="0.0")
+        self.noise_label.pack(side=tk.LEFT)
 
         # 2. Filter Editor (Middle Left)
         filter_frame = tk.LabelFrame(main_frame, text="Filter Editor", padx=10, pady=10)
@@ -56,11 +76,11 @@ class DSPTrainerApp:
         self.cutoff_var = tk.DoubleVar(value=500)
         tk.Entry(filter_frame, textvariable=self.cutoff_var, width=10).pack(pady=2)
 
-        tk.Label(filter_frame, text="Bandwidth/Q (Optional):").pack(pady=2)
+        tk.Label(filter_frame, text="Bandwidth (Hz):").pack(pady=2)
         self.bw_var = tk.DoubleVar(value=10)
         tk.Entry(filter_frame, textvariable=self.bw_var, width=10).pack(pady=2)
         
-        tk.Button(filter_frame, text="⚙ Apply Filter", command=self.process_audio, bg='#4CAF50', fg='white').pack(pady=15, fill='x')
+        tk.Button(filter_frame, text="⚙ Update Audio", command=self.process_audio, bg='#4CAF50', fg='white').pack(pady=15, fill='x')
 
         # 3. Visualization and Playback (Middle Right)
         right_frame = tk.LabelFrame(main_frame, padx=10, pady=10)
@@ -80,6 +100,8 @@ class DSPTrainerApp:
         
         self.play_button_raw = tk.Button(output_controls, text="🔊 Play Raw Audio", command=partial(self.playback_audio, 'raw'), state=tk.DISABLED)
         self.play_button_raw.pack(side=tk.LEFT, padx=10)
+        self.play_button_noisy = tk.Button(output_controls, text="🔊 Play Noisy Audio", command=partial(self.playback_audio, 'noisy'), state=tk.DISABLED)
+        self.play_button_noisy.pack(side=tk.LEFT, padx=10)
         self.play_button_processed = tk.Button(output_controls, text="🔊 Play Processed Audio", command=partial(self.playback_audio, 'processed'), state=tk.DISABLED)
         self.play_button_processed.pack(side=tk.LEFT, padx=10)
         
@@ -100,7 +122,30 @@ class DSPTrainerApp:
         
         # Initial update of the saved tracks UI
         self._update_saved_tracks_ui()
+        
+        # Initialize the noise label
+        self.update_noise_label(self.noise_slider.get())
 
+
+    # ========================================================
+    # NOISE HANDLERS
+    # ========================================================
+
+    def update_noise_label(self, value):
+        """Updates the label displaying the current noise magnitude."""
+        self.noise_label.config(text=f"{float(value):.2f}")
+
+    def add_noise(self, signal, noise_magnitude):
+        """Adds Gaussian noise to the original signal."""
+        if noise_magnitude <= 0.0:
+            return signal.copy()
+        
+        # Generate noise with zero mean and specified standard deviation
+        noise = np.random.normal(0, noise_magnitude, len(signal))
+        
+        # Add noise to the signal
+        noisy_signal = signal * (1 + noise)
+        return noisy_signal
 
     # ========================================================
     # CORE DSP FUNCTIONS
@@ -131,8 +176,13 @@ class DSPTrainerApp:
                 self.frames = []
                 messagebox.showinfo("Recording Complete", f"Recorded {len(self.audio_data)} samples.")
                 self.record_button.config(text="🎙 Record Audio")
-                self.update_visualization()
+                
+                # Immediately add noise and update visualizations
+                self.process_audio()
+
+                # Update UI
                 self.play_button_raw.config(state=tk.NORMAL)
+                self.play_button_noisy.config(state=tk.NORMAL)
             else:
                 messagebox.showwarning("No Data", "No audio recorded.")
                 self.clear_data()
@@ -142,6 +192,7 @@ class DSPTrainerApp:
             self.recording = True
             self.frames = []
             self.audio_data = np.zeros(1)
+            self.noisy_data = None # Reset noise data
             self.filtered_data = None
             self.master.update()
             self.record_button.config(text="🔴 RECORDING...")
@@ -212,8 +263,6 @@ class DSPTrainerApp:
         except Exception as e:
             messagebox.showerror("Playback Error", f"Could not play saved audio: {e}")
 
-
-
     def clear_data(self):
         """Clears all stored audio data and plots."""
         self.audio_data = None
@@ -229,7 +278,7 @@ class DSPTrainerApp:
     # DSP CORE LOGIC
     # ========================================================
 
-    def apply_filter(self, data, filter_type, cutoff, bw, q):
+    def apply_filter(self, data, filter_type, cutoff, bw):
         """
         Applies the selected digital filter to the audio data.
         Uses the Butterworth filter design for simplicity.
@@ -241,6 +290,11 @@ class DSPTrainerApp:
         
         # Determine normalized frequency (or frequencies)
         if filter_type == "Band-Pass" or filter_type == "Band-Stop":
+            # Ensure cutoff - bw > 0 and cutoff + bw < sample_rate/2
+            if (cutoff - bw) < 1 or (cutoff + bw) > (self.sample_rate / 2) - 1:
+                 print("Warning: Band parameters outside valid frequency range. Using default.")
+                 return data.copy()
+            
             cutoff_low = (cutoff - bw) / (self.sample_rate / 2)
             cutoff_high = (cutoff + bw) / (self.sample_rate / 2)
             Wn = [cutoff_low, cutoff_high]
@@ -266,38 +320,41 @@ class DSPTrainerApp:
         return y
 
     def process_audio(self):
-        """Main function to orchestrate filtering and visualization."""
+        """Main function to orchestrate noise addition, filtering, and visualization."""
         if self.audio_data is None:
             messagebox.showerror("Error", "Please record audio first.")
             return
 
         try:
-            # 1. Get Filter Parameters
+            # 1. Add Noise
+            noise_mag = float(self.noise_slider.get())
+            self.noisy_data = self.add_noise(self.audio_data, noise_mag)
+            
+            # 2. Get Filter Parameters
             filter_type = self.filter_type.get()
             cutoff = self.cutoff_var.get()
             bw = self.bw_var.get()
-            q = self.bw_var.get() # Using the second entry for Q factor in Notch
 
             if cutoff <= 0:
                  messagebox.showwarning("Input Error", "Cutoff frequency must be positive.")
                  return
             
-            # 2. Apply Filter
-            filtered_data = self.apply_filter(self.audio_data, filter_type, cutoff, bw, q)
+            # 3. Apply Filter to Noisy Data
+            filtered_data = self.apply_filter(self.noisy_data, filter_type, cutoff, bw)
             self.filtered_data = filtered_data
             
-            messagebox.showinfo("Success", "Filtering applied successfully! Results displayed.")
+            #messagebox.showinfo("Success", "Processing applied successfully! Results displayed.")
             
-            # 3. Update UI
+            # 4. Update UI
             self.update_visualization()
             self.play_button_processed.config(state=tk.NORMAL)
 
         except Exception as e:
-            messagebox.showerror("Processing Error", f"An error occurred during filtering: {e}")
+            messagebox.showerror("Processing Error", f"An error occurred during processing: {e}")
             self.filtered_data = None
 
     # ========================================================
-    # VISUALIZATION & PLAYBACK
+    # VISUALIZATION & PLAYBACK (Requires updating which data is plotted)
     # ========================================================
 
     def update_visualization(self):
@@ -308,14 +365,18 @@ class DSPTrainerApp:
         time_axis = np.arange(len(self.audio_data)) / self.sample_rate
         
         # Plot Original Waveform
-        self.axes[0].plot(time_axis, self.audio_data, label='Original Signal', color='blue', alpha=0.7)
+        self.axes[0].plot(time_axis, self.audio_data, label='1. Original Signal', color='blue', alpha=0.5)
         
+        # Plot Noisy Waveform
+        if self.noisy_data is not None:
+            self.axes[0].plot(time_axis, self.noisy_data, label='2. Noisy Signal', color='orange', alpha=0.7)
+            
         # Plot Filtered Waveform
         if self.filtered_data is not None:
-            self.axes[0].plot(time_axis, self.filtered_data, label='Processed Signal', color='red', alpha=0.7)
+            self.axes[0].plot(time_axis, self.filtered_data, label='3. Processed Signal', color='red', alpha=0.7)
             self.axes[0].legend()
 
-        self.axes[0].set_title("Time Domain Waveform (Before vs After)")
+        self.axes[0].set_title("Time Domain Waveform (Raw -> Noisy -> Filtered)")
         self.axes[0].set_xlabel("Time (seconds)")
         self.axes[0].set_ylabel("Amplitude")
         self.axes[0].grid(True)
@@ -324,10 +385,21 @@ class DSPTrainerApp:
         self.axes[1].clear()
         N = len(self.audio_data)
         
-        # Calculate FFT
+        # Calculate FFT for Original
         yf_original = np.fft.fft(self.audio_data)
         xf_original = np.fft.fftfreq(N, 1/self.sample_rate)
         magnitude_original = 2.0/N * np.abs(yf_original)
+        
+        # Calculate FFT for Noisy (if noise was added)
+        magnitude_noisy = None
+        if self.noisy_data is not None:
+            yf_noisy = np.fft.fft(self.noisy_data)
+            magnitude_noisy = 2.0/N * np.abs(yf_noisy)
+            
+            self.axes[1].plot(xf_original[:N//2], magnitude_original[:N//2], label='Original Spectrum', alpha=0.5, color='blue')
+            self.axes[1].plot(xf_original[:N//2], magnitude_noisy[:N//2], label='Noisy Spectrum', alpha=0.7, color='orange')
+        else:
+            self.axes[1].plot(xf_original[:N//2], magnitude_original[:N//2], label='Original Spectrum', color='blue')
         
         # Calculate FFT for filtered data
         if self.filtered_data is not None:
@@ -336,15 +408,12 @@ class DSPTrainerApp:
             magnitude_filtered = 2.0/N * np.abs(yf_filtered)
 
             # Plot Spectra
-            self.axes[1].plot(xf_original[:N//2], magnitude_original[:N//2], label='Original Spectrum', alpha=0.7)
             self.axes[1].plot(xf_filtered[:N//2], magnitude_filtered[:N//2], label='Processed Spectrum', alpha=0.7, color='red')
             self.axes[1].legend()
         else:
-            # Only plot original if no processing happened
-            self.axes[1].plot(xf_original[:N//2], magnitude_original[:N//2], label='Original Spectrum', color='blue')
-            self.axes[1].legend()
+            self.axes[1].legend() # Just redraw legend if nothing is plotted
 
-        self.axes[1].set_title("Frequency Domain (FFT) - Before vs After")
+        self.axes[1].set_title("Frequency Domain (FFT) - Original -> Noisy -> Filtered")
         self.axes[1].set_xlabel("Frequency (Hz)")
         self.axes[1].set_ylabel("Magnitude")
         self.axes[1].grid(True)
@@ -352,13 +421,14 @@ class DSPTrainerApp:
         # Redraw the canvas to display updates
         self.canvas.draw()
 
-
     def playback_audio(self, type: str):
-        """Plays the filtered audio data using PyAudio."""
+        """Plays the audio data (raw, noisy, or processed)."""
         if type == 'raw':
             data = self.audio_data
         elif type == 'processed':
             data = self.filtered_data
+        elif type == 'noisy': # Added for direct noisy playback
+            data = self.noisy_data
         else:
             messagebox.showwarning("Playback Error", "Invalid data type")
             return
