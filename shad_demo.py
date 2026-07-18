@@ -51,7 +51,7 @@ class DSPTrainerApp:
 
         tk.Label(filter_frame, text="Filter Type:").pack(pady=5)
         self.filter_type = tk.StringVar(value="Low-Pass")
-        self.filter_options = ["Low-Pass", "High-Pass", "Band-Pass", "Notch"]
+        self.filter_options = ["Low-Pass", "High-Pass", "Band-Pass", "Band-Stop"]
         tk.OptionMenu(filter_frame, self.filter_type, *self.filter_options).pack(pady=5, anchor="w")
         
         # Filter parameters
@@ -240,22 +240,15 @@ class DSPTrainerApp:
         print(f"\n--- Applying {filter_type} Filter ---")
         
         # Determine filter order (a standard value)
-        N = 5 
+        N = 5
         
-        # Calculate normalized cutoff frequency (relative to Nyquist frequency = Fs/2)
-        Wn = cutoff / (self.sample_rate / 2)
-        cutoff_low = (cutoff - bw) / (self.sample_rate / 2)
-        cutoff_high = (cutoff + bw) / (self.sample_rate / 2)
-        
-        # Special handling for Band-Pass and Notch
-        if filter_type == "Band-Pass":
+        # Determine normalized frequency (or frequencies)
+        if filter_type == "Band-Pass" or filter_type == "Band-Stop":
+            cutoff_low = (cutoff - bw) / (self.sample_rate / 2)
+            cutoff_high = (cutoff + bw) / (self.sample_rate / 2)
             Wn = [cutoff_low, cutoff_high]
-            # Note: For simplicity, we use the bandwidth value as both upper and lower cutoff
-        elif filter_type == "Notch":
-            # Notch requires the center frequency and the quality factor (Q)
-            # We treat the center frequency as the primary cutoff for the butter function,
-            # but we rely on the 'q' factor logic internally.
-            pass 
+        else:
+            Wn = cutoff / (self.sample_rate / 2)
 
         x = data.copy()
         
@@ -267,17 +260,9 @@ class DSPTrainerApp:
         
         elif filter_type == "Band-Pass":
             b, a = signal.butter(N, Wn, btype='band')
-        
-        elif filter_type == "Notch":
-            # Notch requires a different design function or a custom IIR implementation.
-            # For simplicity, we approximate a notch using a band-pass with a narrow bandwidth.
-            if q == 0:
-                messagebox.showwarning("Filter Error", "Cannot apply Notch filter: Q (Quality Factor) must be > 0.")
-                return data
-            
-            # Approximate Notch by using the frequency and Q factor
-            # This specific implementation uses a simple BPF centered at F0
-            b, a = signal.iirnotch(self.sample_rate / (2 * (q * self.freq_var.get())), self.freq_var.get())
+
+        elif filter_type == "Band-Stop":
+            b, a = signal.butter(N, Wn, btype='bandstop')
 
         y = signal.filtfilt(b, a, x)
         
