@@ -1,0 +1,9 @@
+# Update and install build tools
+sudo apt update
+sudo apt install build-essential python3-dev
+
+# Install PortAudio development libraries (Crucial for PyAudio)
+sudo apt install libportaudio2 portaudio19-dev
+
+# pip
+pip install numpy scipy matplotlib pyaudio tkinter
