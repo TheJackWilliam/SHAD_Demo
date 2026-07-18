@@ -319,6 +319,21 @@ class DSPTrainerApp:
         
         return y
 
+    def _normalize_audio(self, data):
+        """Scales the audio data so that its maximum absolute amplitude is 1.0."""
+        if data is None or len(data) == 0:
+            return data
+
+        # Calculate the peak amplitude (the maximum absolute value)
+        max_amp = np.max(np.abs(data))
+        
+        if max_amp == 0:
+            return data
+        
+        # Normalize by dividing the entire signal by the maximum amplitude
+        normalized_data = data / max_amp
+        return normalized_data
+
     def process_audio(self):
         """Main function to orchestrate noise addition, filtering, and visualization."""
         if self.audio_data is None:
@@ -329,7 +344,8 @@ class DSPTrainerApp:
             # 1. Add Noise
             noise_mag = float(self.noise_slider.get())
             self.noisy_data = self.add_noise(self.audio_data, noise_mag)
-            
+            self.normalized_noisy_data = self._normalize_audio(self.noisy_data)
+
             # 2. Get Filter Parameters
             filter_type = self.filter_type.get()
             cutoff = self.cutoff_var.get()
@@ -340,7 +356,7 @@ class DSPTrainerApp:
                  return
             
             # 3. Apply Filter to Noisy Data
-            filtered_data = self.apply_filter(self.noisy_data, filter_type, cutoff, bw)
+            filtered_data = self.apply_filter(self.normalized_noisy_data, filter_type, cutoff, bw)
             self.filtered_data = filtered_data
             
             #messagebox.showinfo("Success", "Processing applied successfully! Results displayed.")
