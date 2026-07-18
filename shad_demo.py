@@ -1,5 +1,4 @@
 import tkinter as tk
-from tkinter import ttk 
 from tkinter import messagebox
 import numpy as np
 from scipy import signal
@@ -42,8 +41,6 @@ class DSPTrainerApp:
         tk.Label(control_frame, text="Recording Status:").pack(side=tk.LEFT, padx=5)
         self.record_button = tk.Button(control_frame, text="🎙 Record Audio", command=self.toggle_recording)
         self.record_button.pack(side=tk.LEFT, padx=10)
-        
-
 
         # 2. Filter Editor (Middle Left)
         filter_frame = tk.LabelFrame(main_frame, text="Filter Editor", padx=10, pady=10)
@@ -351,7 +348,7 @@ class DSPTrainerApp:
         self.axes[1].set_xlabel("Frequency (Hz)")
         self.axes[1].set_ylabel("Magnitude")
         self.axes[1].grid(True)
-        
+
         # Redraw the canvas to display updates
         self.canvas.draw()
 
@@ -386,10 +383,6 @@ class DSPTrainerApp:
 
 
 if __name__ == "__main__":
-    # Setup a custom style for the Stop button (optional, for better UI)
     root = tk.Tk()
-    style = ttk.Style(root)
-    style.configure('TButton.STOP', background='#FF5733', foreground='white')
-    
     app = DSPTrainerApp(root)
     root.mainloop()
